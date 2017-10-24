@@ -19,6 +19,7 @@ public class FormController {
         m.Nekrasov();
         m.drawStatistic(canvas.getGraphicsContext2D());
         m.printStatistic(area);
+        //m.printR();
     }
 
     public void initialize() {

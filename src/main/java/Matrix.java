@@ -10,7 +10,7 @@ public class Matrix {
     private double[][] statistic = null;
     private double[] r = null;
     private int size;
-    private final double EPS = 1e-7;
+    private final double EPS = 1e-3;
     private final int MAXITER = 40;
     private int iters;
 
@@ -32,18 +32,6 @@ public class Matrix {
             for (int j=0;j<=size;j++)
                 a[i][j] = backup[i][j];
         }
-    }
-
-    private void modifMatrix() {
-        for (int i=0; i<size; i++) {
-            double mx = Math.abs(a[i][0]);
-            for (int j=1; j<size+1; j++)
-                if (Math.abs(a[i][j]) > mx) mx = a[i][j];
-            for (int j=0; j<size+1; j++)
-                a[i][j] /= (2.0*mx);
-        }
-
-        print();
     }
 
     public void print() {
@@ -157,6 +145,7 @@ public class Matrix {
     }
 
     public void calcVectorR() {
+        loadFromBackUp();
         if (x != null) {
             r = new double[size];
             for (int i=0; i<size;i++) {
@@ -183,8 +172,6 @@ public class Matrix {
     public void Nekrasov() {
         loadFromBackUp();
 
-        modifMatrix();
-
         for (int k=0; k<size-1;k++) {
             gauusStep(k, 1.1);
         }
@@ -200,13 +187,13 @@ public class Matrix {
             do {
                 iteration++;
                 for (int i=0; i<size; i++) {
-                    x[i] =(a[i][size]- sum1()-sum2())/a[i][i];
+                    x[i] =(a[i][size]- sunRow(i, iteration))/a[i][i];
                     statistic[iteration][i] = x[i];
                 }
                 statistic[iteration][size] = g(iteration);
             } while (!(statistic[iteration][size] < EPS) && (iteration < MAXITER-1));
 
-            System.err.println(iteration);
+            //System.err.println(iteration);
             iters = iteration;
         }
     }
@@ -231,12 +218,43 @@ public class Matrix {
         return s;
     }
 
+    public double sunRow(int row, int k) {
+        double s = 0.0;
+        for (int j=0 ;j<size; j++) {
+            if (row < j)
+                s += a[row][j] * statistic[k-1][j];
+            else if (row == j) continue;
+            else
+                s += a[row][j] * statistic[k][j];
+        }
+        return s;
+    }
+
     public void drawStatistic(GraphicsContext gc) {
         gc.setFill(Color.GRAY);
-        gc.fillRect(0,0,300, 300);
+        gc.fillRect(0,0,400, 430);
+        gc.setStroke(Color.DARKGREEN);
+
+        gc.setLineWidth(1);
+//        gc.setLineDashOffset(5);
+//        gc.setLineDashes(15);
+        gc.strokeLine(0,420,400, 420);
+        gc.setFill(Color.LIGHTSLATEGRAY);
+
+        double maxDev = 0.0;
+        for (int i=0; i<=iters; i++) {
+            if (statistic[i][size] > maxDev)
+                maxDev = statistic[i][size];
+        }
+        double k = 400 / maxDev;
         gc.setStroke(Color.YELLOW);
         gc.setLineWidth(2);
-        for(int i=0; i<iters; i++) {
+
+        double barWidth = 40.0;
+
+        for(int i=1; i<=iters; i++) {
+            gc.fillRect(i*barWidth+5, 420-statistic[i][size]*k, barWidth, statistic[i][size]*k);
+            gc.strokeLine(i*barWidth+5, 420-statistic[i][size]*k,(i+1)*barWidth+5, 420-statistic[i][size]*k);
         }
     }
 
@@ -287,10 +305,10 @@ public class Matrix {
     public void printStatistic(TextArea area) {
         area.clear();
         StringBuilder sb = new StringBuilder();
-        for(int i=0; i<iters; i++) {
-            sb.append("x1=" + String.format("%9.3f", statistic[i][0]) + "\tx2=" + String.format("%9.3f", statistic[i][1]) +
-                      "\tx3=" + String.format("%9.3f", statistic[i][2]) + "\tx4=" + String.format("%9.3f", statistic[i][3]) +
-                      "\tG =" + String.format("%9.4f", statistic[i][4]) + "\n");
+        for(int i=1; i<=iters; i++) {
+            sb.append("=== iteration(" + i + ") ==\n"+"x1=" + String.format("%.9f", statistic[i][0]) + "\nx2=" + String.format("%.9f", statistic[i][1]) +
+                      "\nx3=" + String.format("%.9f", statistic[i][2]) + "\nx4=" + String.format("%.9f", statistic[i][3]) +
+                      "\nG =" + String.format("%.9f", statistic[i][4]) + "\n\n");
             area.setText(sb.toString());
         }
 

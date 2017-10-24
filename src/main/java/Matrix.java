@@ -10,7 +10,7 @@ public class Matrix {
     private double[][] statistic = null;
     private double[] r = null;
     private int size;
-    private final double EPS = 1e-3;
+    private final double EPS = 1e-7;
     private final int MAXITER = 40;
     private int iters;
 
@@ -18,6 +18,7 @@ public class Matrix {
         size = 4;
         //a = new double[][]{{1, 1000, 0, 8, 3}, {10, 4, 4, 5, 2}, {10, 4, 4, 5, 2}, {2, 4, 6, 5, 3}};
         a = new double[][]{{1, 1000, 0, 8, 3}, {10, 4, 4, 5, 2}, {-2, 8, -5, 0,2}, {2, 4, 6, 5, 3}};
+//        a = new double[][]{{100, 1, 1, 1, 109}, {1, 100, 1, 1, 208}, {1, 1, 100, 1, 307}, {1, 1, 1, 100, 406}};
         backup = new double[size][size+1];
         for (int i=0;i<size;i++) {
             for (int j=0;j<=size;j++)
@@ -31,6 +32,18 @@ public class Matrix {
             for (int j=0;j<=size;j++)
                 a[i][j] = backup[i][j];
         }
+    }
+
+    private void modifMatrix() {
+        for (int i=0; i<size; i++) {
+            double mx = Math.abs(a[i][0]);
+            for (int j=1; j<size+1; j++)
+                if (Math.abs(a[i][j]) > mx) mx = a[i][j];
+            for (int j=0; j<size+1; j++)
+                a[i][j] /= (2.0*mx);
+        }
+
+        print();
     }
 
     public void print() {
@@ -62,7 +75,7 @@ public class Matrix {
     public void solveGauss() {
         loadFromBackUp();
         for (int k=0; k<size-1;k++) {
-            gauusStep(k);
+            gauusStep(k, 1.0);
         }
         findX();
         //printSolve();
@@ -88,7 +101,7 @@ public class Matrix {
         }
     }
 
-    private void gauusStep(int row) {
+    private void gauusStep(int row, double k) {
         for (int i=row+1; i<size; i++) {
             double r = a[i][row] / a[row][row];
             for (int j=row; j<size;j++) {
@@ -106,7 +119,7 @@ public class Matrix {
                 throw new BadSLAR();
             if (h != k)
                 swapRows(k, h);
-            gauusStep(k);
+            gauusStep(k, 1.0);
         }
         findX();
     }
@@ -169,29 +182,40 @@ public class Matrix {
 
     public void Nekrasov() {
         loadFromBackUp();
-        statistic = new double[MAXITER][size+1];
-        int iteration = 0;
-        for (int i = 0; i < size; i++) {
-            for (int j = 0; j < size; j++) {
-                if ((Math.abs(backup[i][i]) > conv1()) || (Math.abs (backup[j][j]) > conv2())) {
-                    statistic[iteration][size] = g();
-                    while ((statistic[iteration][size] < EPS) && (iteration < MAXITER)) {
-                        x[i] =(backup[i][size]- sum1()-sum2())/a[i][i];
-                        statistic[iteration][i] = x[i];
-                    }
-                    iteration++;
-                    System.out.println(iteration);
-                }
-            }
+
+        modifMatrix();
+
+        for (int k=0; k<size-1;k++) {
+            gauusStep(k, 1.1);
         }
-        iters = iteration;
+
+        if (conv1() || conv2() || true) {
+            statistic = new double[MAXITER][size+1];
+            int iteration = 0;
+
+            x = new double[size];
+            for (int i=0; i<size; i++)
+                x[i] = 0.0;
+
+            do {
+                iteration++;
+                for (int i=0; i<size; i++) {
+                    x[i] =(a[i][size]- sum1()-sum2())/a[i][i];
+                    statistic[iteration][i] = x[i];
+                }
+                statistic[iteration][size] = g(iteration);
+            } while (!(statistic[iteration][size] < EPS) && (iteration < MAXITER-1));
+
+            System.err.println(iteration);
+            iters = iteration;
+        }
     }
 
     public double sum1() {
         double s=0;
         for(int i =0; i<size; i++){
             for (int j=1; j<i-1; j++){
-                s +=backup[i][j]*x[j];
+                s += a[i][j]*x[j];
             }
         }
         return s;
@@ -201,7 +225,7 @@ public class Matrix {
         double s=0;
         for(int i =0; i<size; i++){
             for (int j=i+1; j<size; j++) {
-                s +=backup[i][j]*x[j];
+                s += a[i][j]*x[j];
             }
         }
         return s;
@@ -216,47 +240,57 @@ public class Matrix {
         }
     }
 
-    private double conv1() {
-        double s = 0;
+    private boolean conv1() {
+        boolean result = true;
         for (int i = 0; i < size; i++) {
+            double s= 0;
             for (int j = 0; j<size; j++){
                 if (j != i)
-                    s += Math.abs(backup[i][j]);
+                    s += Math.abs(a[i][j]);
             }
+            if (a[i][i] <= s )
+                return false;
         }
-        return s;
+        return result;
     }
 
-    private double conv2() {
-        double s = 0;
+    private boolean conv2() {
+        boolean result = true;
         for (int j = 0; j < size; j++) {
+            double s = 0;
             for (int i = 0; i < size; i++) {
-                if (i != j)
-                    s += Math.abs(backup[i][j]);
+                if (j != i)
+                    s += Math.abs(a[i][j]);
             }
+            if (a[j][j] <= s)
+                return false;
         }
-        return s;
+        return result;
     }
 
-
-    private double g() {
-        double g = 0;
+    private double g(int k) {
+        double maxG = 0.0;
         for (int i = 0; i < size; i++) {
-            for (int j = 0; j < size; j++) {
-                if (Math.abs(x[i]) <= 1) g = Math.abs(x[i] - x[i-1]);
-                else if (Math.abs(x[i]) > 1) g = Math.abs(x[i] - x[i-1]) / Math.abs(x[i]);
+            double g;
+            if (statistic[k][i] <= 1) {
+                g = Math.abs(statistic[k][i] - statistic[k-1][i]);
+            } else {
+                g = Math.abs((statistic[k][i] - statistic[k-1][i]) / statistic[k][i]);
             }
+
+            if (g > maxG)
+                maxG = g;
         }
-        return g;
+        return maxG;
     }
 
     public void printStatistic(TextArea area) {
         area.clear();
         StringBuilder sb = new StringBuilder();
         for(int i=0; i<iters; i++) {
-            sb.append("x1=" + String.format("%9.3f", statistic[i][0]) + "x2=" + String.format("%9.3f", statistic[i][2]) +
-                      "x3=" + String.format("%9.3f", statistic[i][2]) + "x4=" + String.format("%9.3f", statistic[i][3]) +
-                      "\n");
+            sb.append("x1=" + String.format("%9.3f", statistic[i][0]) + "\tx2=" + String.format("%9.3f", statistic[i][1]) +
+                      "\tx3=" + String.format("%9.3f", statistic[i][2]) + "\tx4=" + String.format("%9.3f", statistic[i][3]) +
+                      "\tG =" + String.format("%9.4f", statistic[i][4]) + "\n");
             area.setText(sb.toString());
         }
 
